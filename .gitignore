@@ -1,0 +1,5 @@
+bin/
+*.iso
+*.bin
+*.a
+__pycache__/

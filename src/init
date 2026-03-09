@@ -1,0 +1,73 @@
+#!/usr/bin/python3.15
+import os
+import sys
+import subprocess
+import ctypes
+
+# Сделано https://github.com/attackuwu под лицензией GPL-2.0
+# Документация: https://github.com/attackuwu/pynux/wiki
+
+def mount_fs():
+    # Монтируем ФС напрямую через ядро Linux (C API)
+    # Нам больше не нужны сторонние программы вроде /bin/mount!
+    try:
+        libc = ctypes.CDLL('libc.so.6')
+        
+        for p in ["/proc", "/sys", "/dev"]:
+            if not os.path.exists(p):
+                os.makedirs(p)
+                
+        # Параметры: (source, target, filesystemtype, mountflags, data)
+        libc.mount(b"proc", b"/proc", b"proc", 0, None)
+        libc.mount(b"sys", b"/sys", b"sysfs", 0, None)
+        libc.mount(b"dev", b"/dev", b"devtmpfs", 0, None)
+        print("\033[1;32m[+]\033[0m Файловые системы ядра смонтированы.")
+    except Exception as e:
+        print(f"\033[1;31m[-]\033[0m Ошибка монтирования: {e}")
+
+def load_system_modules():
+    modules_dir = "/system/modules"
+    if not os.path.exists(modules_dir):
+        return
+
+    modules = sorted(os.listdir(modules_dir))
+    for filename in modules:
+        if filename.endswith(".py"):
+            filepath = os.path.join(modules_dir, filename)
+            try:
+                with open(filepath, "r") as f:
+                    exec(f.read(), globals())
+            except Exception as e:
+                print(f"[pynit] Ошибка в модуле {filename}: {e}")
+
+def start_shell():
+    shell_path = "/system/shell/shell.py"
+    
+    if not os.path.exists(shell_path):
+        print(f"[pynit] ОШИБКА: Оболочка {shell_path} не найдена!")
+        # Запускаем пайтон напрямую, без шелла
+        subprocess.run(["/usr/bin/python3.15"])
+        return
+
+    print("[pynit] Передача управления Pynux Shell...")
+    
+    while True:
+        try:
+            # subprocess.run запускает бинарник НАПРЯМУЮ, без /bin/sh
+            subprocess.run(["/usr/bin/python3.15", shell_path])
+        except KeyboardInterrupt:
+            pass
+        except Exception as e:
+            print(f"[pynit] Сбой оболочки: {e}")
+        
+        print("\n[pynit] Оболочка завершена. Нажми Enter для перезапуска...")
+        input()
+
+if __name__ == "__main__":
+    print("\n\033[1;36m" + "="*40)
+    print("  PYNUX INIT SYSTEM (PID 1)")
+    print("="*40 + "\033[0m")
+    
+    mount_fs()
+    load_system_modules()
+    start_shell()
